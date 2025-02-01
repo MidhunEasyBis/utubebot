@@ -5,8 +5,10 @@ from pydub import AudioSegment
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 
-# Replace with your Telegram bot token
-TELEGRAM_BOT_TOKEN = "7754682325:AAHXj7BPAjZx1PAzD7adoiq-QZoKBw7U9pQ"
+# Read the Telegram bot token from environment variables
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+if not TELEGRAM_BOT_TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN environment variable is not set.")
 
 # Enable logging
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
