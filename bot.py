@@ -1,5 +1,6 @@
 import os
 import logging
+import requests
 from pytube import YouTube
 from pydub import AudioSegment
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -29,7 +30,15 @@ async def handle_youtube_link(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     try:
-        yt = YouTube(url)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            yt = YouTube(url)
+            # Proceed with downloading
+        else:
+            print("Failed to fetch video:", response.status_code)
         title = yt.title
         streams = yt.streams.filter(progressive=True, file_extension="mp4").order_by("resolution").desc()
 
