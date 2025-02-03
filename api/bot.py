@@ -124,40 +124,31 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_youtube_l
 app.add_handler(CallbackQueryHandler(handle_quality_selection))
 
 # Vercel handler
-class handler(BaseHTTPRequestHandler):
- def do_POST(self):
-     content_length = int(self.headers['Content-Length'])
-     post_data = self.rfile.read(content_length)
-     
-     logger.info("Received POST request")
-     logger.info(f"Headers: {self.headers}")
-     logger.info(f"Body: {post_data.decode('utf-8')}")
-     
-     try:
-         body = json.loads(post_data.decode('utf-8'))
-         update = Update.de_json(body, app.bot)
-         
-         async def process_update():
-             logger.info("Processing update")
-             try:
-                 await app.process_update(update)
-                 logger.info("Update processed successfully")
-             except Exception as e:
-                 logger.error(f"Error processing update: {e}")
+from flask import Flask, request, jsonify
+import logging
+import asyncio
 
-         asyncio.run(process_update())
-         
-         self.send_response(200)
-         self.end_headers()
-         self.wfile.write("OK".encode('utf-8'))
-     except Exception as e:
-         logger.error(f"Error processing update: {e}")
-         self.send_response(500)
-         self.end_headers()
-         self.wfile.write(str(e).encode('utf-8'))
+app = Flask(__name__)
 
- def do_GET(self):
-     self.send_response(200)
-     self.end_headers()
-     self.wfile.write("Bot is running".encode('utf-8'))
+@app.route('/api', methods=['POST'])
+def handle_webhook():
+    try:
+        data = request.json
+        update = Update.de_json(data, app.bot)
+        
+        async def process_update():
+            try:
+                await app.process_update(update)
+                logging.info("Update processed successfully")
+            except Exception as e:
+                logging.error(f"Error processing update: {e}")
 
+        asyncio.run(process_update())
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        logging.error(f"Error handling webhook: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/api', methods=['GET'])
+def health_check():
+    return "Bot is running", 200
