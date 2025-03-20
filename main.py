@@ -40,6 +40,9 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 MAX_VIDEO_DURATION = 7200  # 2 hours in seconds
 RATE_LIMIT = timedelta(seconds=30)
 
+# Get the absolute path to cookies.txt
+COOKIES_PATH = os.path.abspath("cookies.txt")
+
 # Rate limiting storage
 user_last_request = defaultdict(lambda: datetime.min)
 
@@ -60,7 +63,7 @@ yt_dlp_opts = {
     "outtmpl": "%(title)s.%(ext)s",
     "socket_timeout": 300,
     "extract_timeout": 600,
-    "cookiefile": "cookies.txt",
+    "cookiefile": COOKIES_PATH,
     "noplaylist": True,
     "ignoreerrors": True,
     "retries": 3,
