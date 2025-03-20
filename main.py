@@ -6,6 +6,16 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes, MessageHandler, filters
 from dotenv import load_dotenv
 
+import threading
+from health import run_health_server
+from telegram.ext import ApplicationBuilder
+
+# Start the health check server in a separate thread
+health_thread = threading.Thread(target=run_health_server)
+health_thread.daemon = True
+health_thread.start()
+
+
 # ✅ Load environment variables from .env file
 load_dotenv()  # Make sure to install python-dotenv (pip install python-dotenv)
 
