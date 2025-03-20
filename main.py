@@ -15,7 +15,6 @@ health_thread = threading.Thread(target=run_health_server)
 health_thread.daemon = True
 health_thread.start()
 
-
 # ✅ Load environment variables from .env file
 load_dotenv()  # Make sure to install python-dotenv (pip install python-dotenv)
 
@@ -29,7 +28,7 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")  # Ensure it's set in your 
 # ✅ Maximum file size allowed (50 MB)
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 
-# ✅ yt-dlp options with maximum timeout
+# ✅ yt-dlp options with cookie support
 yt_dlp_opts = {
     "quiet": True,  # Suppress output
     "no_warnings": True,  # Suppress warnings
@@ -37,6 +36,7 @@ yt_dlp_opts = {
     "outtmpl": "%(title)s.%(ext)s",  # Output template for filenames
     "socket_timeout": 300,  # Increase socket timeout to 300 seconds (5 minutes)
     "extract_timeout": 600,  # Increase extraction timeout to 600 seconds (10 minutes)
+    "cookiefile": "cookies.txt",  # 👈 Use cookies.txt for authentication
 }
 
 # ✅ Function to download video
