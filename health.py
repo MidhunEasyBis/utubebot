@@ -1,6 +1,6 @@
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 
-PORT = 8000  # Same as Koyeb's health check port
+PORT = 10000  # Same as Koyeb's health check port
 
 class HealthCheckHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
