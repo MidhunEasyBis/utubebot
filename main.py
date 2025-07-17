@@ -455,7 +455,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         with tempfile.TemporaryDirectory(prefix="ytdl_") as temp_dir:
             # Update options with temp directory
             temp_opts = opts.copy()
-            temp_opts["outtmpl"] = os.path.join(temp_dir, f"%(title)s_{random_str}.%(ext)s")
+            temp_opts["outtmpl"] = os.path.join(temp_dir, f"{random_str}.%(ext)s")
             
             try:
                 with yt_dlp.YoutubeDL(temp_opts) as ydl:
@@ -471,11 +471,23 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     # Get the actual filename
                     info = context.user_data.get("info") or ydl.extract_info(url, download=False)
-                    filename = ydl.prepare_filename(info)
+                    # With this:
+                    downloaded_files = [f for f in os.listdir(temp_dir) if f.startswith(random_str)]
+                    if not downloaded_files:
+                        raise FileNotFoundError("No downloaded files found")
+                    filename = os.path.join(temp_dir, downloaded_files[0])
                     
                     # Verify file exists and has content
+                    # Add this after getting the filename:
                     if not os.path.exists(filename):
-                        raise FileNotFoundError(f"Downloaded file not found at {filename}")
+                        # Try with different extensions
+                        for ext in ['.mp4', '.mkv', '.webm', '.mp3']:
+                            alt_path = os.path.join(temp_dir, f"{random_str}{ext}")
+                            if os.path.exists(alt_path):
+                                filename = alt_path
+                                break
+                        else:
+                            raise FileNotFoundError(f"Could not find downloaded file at {filename}")
                     
                     file_size = os.path.getsize(filename)
                     if file_size == 0:
@@ -551,7 +563,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         os.remove(filename)
                     except Exception as e:
                         logger.error(f"Error cleaning up file: {e}")
-
     except Exception as e:
         logger.error(f"Callback handler error: {e}", exc_info=True)
         try:
