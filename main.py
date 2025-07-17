@@ -555,9 +555,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"Callback handler error: {e}", exc_info=True)
         try:
-            await query.edit_message_text("❌ An unexpected error occurred. Please try again.")
-        except:
-            pass
+            if query.message.caption:
+                await query.edit_message_caption("❌ An unexpected error occurred. Please try again.")
+            else:
+                await query.edit_message_text("❌ An unexpected error occurred. Please try again.")
+        except Exception as inner_e:
+            logger.error(f"Fallback message send failed: {inner_e}")
+
             
 async def handle_playlist_option(query, context):
     """Handle playlist download options"""
