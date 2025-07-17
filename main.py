@@ -4,6 +4,7 @@ import logging
 import yt_dlp
 import asyncio
 import time
+import tempfile
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -424,6 +425,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"Message edit failed: {e}")
         return
 
+    # Generate random string for filename
+    random_str = generate_random_string()
+    
     # Prepare download options
     opts = base_yt_dlp_opts.copy()
     opts["progress_hooks"] = [make_progress_hook(context, query.message.chat_id, progress_msg.message_id, use_caption)]
@@ -442,59 +446,79 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif media_type.startswith("format_"):
         opts["format"] = media_type.split("_", 1)[1]
 
-    # Generate a unique filename to avoid conflicts
-    random_str = generate_random_string()
-    opts["outtmpl"] = os.path.join(TEMP_DIR, f"%(title)s_{random_str}.%(ext)s")
-
     try:
         loop = asyncio.get_event_loop()
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            # Download the file
-            await loop.run_in_executor(None, ydl.download, [url])
+        
+        # Create a temporary directory for this download
+        with tempfile.TemporaryDirectory(prefix="ytdl_") as temp_dir:
+            # Update options with temp directory
+            temp_opts = opts.copy()
+            temp_opts["outtmpl"] = os.path.join(temp_dir, f"%(title)s_{random_str}.%(ext)s")
             
-            # Get the actual filename
-            info = context.user_data.get("info") or ydl.extract_info(url, download=False)
-            filename = ydl.prepare_filename(info)
-            
-            # Check file size
-            file_size = os.path.getsize(filename)
-            if file_size > MAX_FILE_SIZE:
-                raise ValueError(f"📁 File size ({format_size(file_size)}) exceeds Telegram limit ({format_size(MAX_FILE_SIZE)})")
+            with yt_dlp.YoutubeDL(temp_opts) as ydl:
+                # Download the file
+                await loop.run_in_executor(None, ydl.download, [url])
+                
+                # Get the actual filename
+                info = context.user_data.get("info") or ydl.extract_info(url, download=False)
+                filename = ydl.prepare_filename(info)
+                
+                # Verify file exists and has content
+                if not os.path.exists(filename):
+                    raise FileNotFoundError(f"Downloaded file not found at {filename}")
+                
+                file_size = os.path.getsize(filename)
+                if file_size == 0:
+                    raise ValueError("Downloaded file is empty (0 bytes)")
+                
+                if file_size > MAX_FILE_SIZE:
+                    raise ValueError(f"📁 File size ({format_size(file_size)}) exceeds Telegram limit ({format_size(MAX_FILE_SIZE)})")
 
-            # Update user stats
-            update_user_stats(query.from_user.id)
+                # Update user stats
+                update_user_stats(query.from_user.id)
 
-            # Send the file
-            if media_type.startswith("audio_"):
-                with open(filename, "rb") as f:
-                    await context.bot.send_audio(
-                        chat_id=query.message.chat_id,
-                        audio=f,
-                        title=info.get('title', 'audio_file'),
-                        performer=info.get('uploader', ''),
-                        duration=info.get('duration'),
-                        read_timeout=60,
-                        write_timeout=60
-                    )
-            else:
-                with open(filename, "rb") as f:
-                    await context.bot.send_video(
-                        chat_id=query.message.chat_id,
-                        video=f,
-                        supports_streaming=True,
-                        duration=info.get('duration'),
-                        width=info.get('width'),
-                        height=info.get('height'),
-                        caption=f"🎬 {info.get('title', 'video_file')}",
-                        read_timeout=60,
-                        write_timeout=60
-                    )
+                # Send the file
+                try:
+                    if media_type.startswith("audio_"):
+                        with open(filename, "rb") as f:
+                            await context.bot.send_audio(
+                                chat_id=query.message.chat_id,
+                                audio=f,
+                                title=info.get('title', 'audio_file'),
+                                performer=info.get('uploader', ''),
+                                duration=info.get('duration'),
+                                read_timeout=60,
+                                write_timeout=60
+                            )
+                    else:
+                        with open(filename, "rb") as f:
+                            await context.bot.send_video(
+                                chat_id=query.message.chat_id,
+                                video=f,
+                                supports_streaming=True,
+                                duration=info.get('duration'),
+                                width=info.get('width'),
+                                height=info.get('height'),
+                                caption=f"🎬 {info.get('title', 'video_file')}",
+                                read_timeout=60,
+                                write_timeout=60
+                            )
+                except Exception as upload_error:
+                    logger.error(f"File upload failed: {upload_error}")
+                    raise ValueError("Failed to upload file to Telegram")
 
-            if use_caption:
-                await query.edit_message_caption("✅ Download complete!")
-            else:
-                await query.edit_message_text("✅ Download complete!")
+                if use_caption:
+                    await query.edit_message_caption("✅ Download complete!")
+                else:
+                    await query.edit_message_text("✅ Download complete!")
 
+    except FileNotFoundError as e:
+        logger.error(f"File not found error: {e}")
+        error_msg = "❌ Error: The downloaded file could not be found. Please try again."
+        if use_caption:
+            await query.edit_message_caption(error_msg)
+        else:
+            await query.edit_message_text(error_msg)
     except Exception as e:
         logger.error(f"Download failed: {e}")
         error_msg = f"❌ Error: {str(e)[:200]}"
@@ -502,14 +526,6 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_caption(error_msg)
         else:
             await query.edit_message_text(error_msg)
-    finally:
-        # Clean up downloaded files
-        if 'filename' in locals() and os.path.exists(filename):
-            try:
-                os.remove(filename)
-            except Exception as e:
-                logger.error(f"File cleanup failed: {e}")
-
 async def handle_playlist_option(query, context):
     """Handle playlist download options"""
     playlist_info = context.user_data.get("playlist_info")
